@@ -1,0 +1,75 @@
+[
+  {
+    "reference": "ORDER1001-A",
+    "id": "SF1001",
+    "payment": {
+      "totalAmount": 199.99
+    },
+    "billingAddress": {
+      "lastName": "Test",
+      "firstName": "ordersTest",
+      "phone": "+911234567890",
+      "mobilePhone": "+911234567890",
+      "street": "123 Main Street",
+      "street2": "Apt 12",
+      "postalCode": "160001",
+      "city": "Chandigarh",
+      "country": "India",
+      "email": "Test@example.com"
+    },
+    "shippingAddress": {
+      "lastName": "test",
+      "firstName": "ordersTest",
+      "phone": "+911234567890",
+      "mobilePhone": "+911234567890",
+      "street": "123 Main Street",
+      "street2": "Apt 12",
+      "postalCode": "160001",
+      "city": "Chandigarh",
+      "country": "India"
+    },
+    "items": [
+      {
+        "reference": "P00123"
+      },
+      {
+        "reference": "P00456"
+      }
+    ]
+  },
+  {
+    "reference": "ORDER1002-A",
+    "id": "SF1002",
+    "payment": {
+      "totalAmount": 299.49
+    },
+    "billingAddress": {
+      "lastName": "Doe",
+      "firstName": "John",
+      "phone": "+33123456789",
+      "mobilePhone": "+33123456789",
+      "street": "456 Market Avenue",
+      "street2": "",
+      "postalCode": "75001",
+      "city": "Paris",
+      "country": "France",
+      "email": "john.doe@example.com"
+    },
+    "shippingAddress": {
+      "lastName": "Doe",
+      "firstName": "John",
+      "phone": "+33123456789",
+      "mobilePhone": "+33123456789",
+      "street": "456 Market Avenue",
+      "street2": "",
+      "postalCode": "75001",
+      "city": "Paris",
+      "country": "France"
+    },
+    "items": [
+      {
+        "reference": "P00999"
+      }
+    ]
+  }
+]

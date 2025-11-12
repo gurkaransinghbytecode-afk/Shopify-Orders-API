@@ -1,0 +1,7 @@
+{
+  "name": "rr-orders-api-mock",
+  "version": "1.0.0",
+  "description": "Mock serverless API for local testing of RugRoyal order structure before Shopify integration.",
+  "type": "module",
+  "dependencies": {}
+}
