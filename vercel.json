@@ -4,16 +4,20 @@
     {
       "src": "api/**/*.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/api/shopify/test/orders",
-      "dest": "/api/shopify/test/orders.js"
+      "src": "/api/(.*)",
+      "dest": "/api/$1.js"
     },
     {
-      "src": "/api/shopify/prod/orders",
-      "dest": "/api/shopify/prod/orders.js"
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
