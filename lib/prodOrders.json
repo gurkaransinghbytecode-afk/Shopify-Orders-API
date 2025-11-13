@@ -1,0 +1,25 @@
+{
+  "orders": [
+    {
+      "reference": "ORDER1001",
+      "id": "SF1001",
+      "created_at": "2024-10-10T12:00:00Z",
+      "updated_at": "2024-10-10T12:00:00Z",
+      "payment": [
+        {
+          "totalAmount": 99.99,
+          "createdAt": "2024-10-10T12:00:00Z"
+        }
+      ],
+      "items": [
+        {
+          "reference": "SKU123",
+          "name": "Example Product",
+          "quantity": 1,
+          "price": 99.99,
+          "currency": "USD"
+        }
+      ]
+    }
+  ]
+}

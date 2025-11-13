@@ -1,23 +1,18 @@
 {
   "version": 2,
-  "builds": [
+  "builds": [{ "src": "api/**/*.js", "use": "@vercel/node" }],
+  "routes": [
     {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
+      "src": "^/$",
+      "dest": "/api/shopify/prod/orders"
     },
     {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
+      "src": "^/test$",
+      "dest": "/api/shopify/test/orders"
+    },
     {
       "src": "/api/(.*)",
       "dest": "/api/$1.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
     }
   ]
 }
