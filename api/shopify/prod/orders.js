@@ -1,4 +1,6 @@
 import axios from "axios";
+import fs from "fs";
+import path from "path";
 
 export default async function handler(req, res) {
   try {
@@ -30,12 +32,13 @@ export default async function handler(req, res) {
     const days = parseInt(req.query.days || "0", 10);
     let url = `https://${shop}/admin/api/2024-10/orders.json?status=any&financial_status=paid`;
 
+    // Filter by last X days
     if (!isNaN(days) && days > 0) {
       const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       url += `&created_at_min=${encodeURIComponent(cutoffDate.toISOString())}`;
     }
 
-    // === Fetch from Shopify ===
+    // === Fetch orders from Shopify ===
     const response = await axios.get(url, {
       headers: {
         "X-Shopify-Access-Token": token,
@@ -45,6 +48,7 @@ export default async function handler(req, res) {
 
     const orders = response.data?.orders || [];
 
+    // No Shopify orders found
     if (orders.length === 0) {
       return res.status(200).json({
         source: "shopify_live",
@@ -56,13 +60,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // === Format data for VT ===
+    // === Format orders (client structure) ===
     const formattedOrders = orders.map((order) => ({
-      reference: order.name, // ORDER1234
-      id: "SF" + order.id, // SF12345
-      payment: {
-        totalAmount: parseFloat(order.total_price),
-      },
+      reference: order.name,
+      id: "SF" + order.id,
+      payment: { totalAmount: parseFloat(order.total_price) },
+
       billingAddress: {
         lastName: order.billing_address?.last_name || "",
         firstName: order.billing_address?.first_name || "",
@@ -75,6 +78,7 @@ export default async function handler(req, res) {
         country: order.billing_address?.country || "",
         email: order.email || "",
       },
+
       shippingAddress: {
         lastName: order.shipping_address?.last_name || "",
         firstName: order.shipping_address?.first_name || "",
@@ -86,15 +90,31 @@ export default async function handler(req, res) {
         city: order.shipping_address?.city || "",
         country: order.shipping_address?.country || "",
       },
+
       items: order.line_items.map((i) => ({
         reference: i.sku || i.product_id?.toString(),
       })),
     }));
 
-    // === Send Response ===
+    // === Load hidden order IDs ===
+    const hiddenFilePath = path.resolve("./lib/hiddenOrders.json");
+    let hiddenList = [];
+
+    if (fs.existsSync(hiddenFilePath)) {
+      const hiddenData = JSON.parse(fs.readFileSync(hiddenFilePath, "utf8"));
+      hiddenList = hiddenData.hidden || [];
+    }
+
+    // === Filter hidden orders ===
+    const visibleOrders = formattedOrders.filter(
+      (o) => !hiddenList.includes(o.id)
+    );
+
     return res.status(200).json({
       source: "shopify_live",
-      orders: formattedOrders,
+      hidden_count: formattedOrders.length - visibleOrders.length,
+      total_count: formattedOrders.length,
+      orders: visibleOrders,
     });
   } catch (error) {
     console.error(
