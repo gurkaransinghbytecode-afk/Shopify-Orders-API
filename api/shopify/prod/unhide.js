@@ -1,59 +1,49 @@
-import fs from "fs";
-import path from "path";
+import axios from "axios";
 
-export default function handler(req, res) {
-  // === Basic Auth (same as other endpoints) ===
+export default async function handler(req, res) {
   const auth = req.headers.authorization || "";
-  const validUser = process.env.BASIC_USER_PROD;
-  const validPass = process.env.BASIC_PASS_PROD;
-
   if (!auth.startsWith("Basic ")) {
-    res
-      .status(401)
-      .setHeader("WWW-Authenticate", "Basic")
-      .json({ error: "Unauthorized" });
-    return;
-  }
-
-  const decoded = Buffer.from(auth.split(" ")[1], "base64").toString();
-  const [user, pass] = decoded.split(":");
-
-  if (user !== validUser || pass !== validPass) {
+    res.setHeader("WWW-Authenticate", "Basic");
     return res.status(401).json({ error: "Unauthorized" });
   }
+  const decoded = Buffer.from(auth.split(" ")[1], "base64").toString();
+  const [user, pass] = decoded.split(":");
+  if (
+    user !== process.env.BASIC_USER_PROD ||
+    pass !== process.env.BASIC_PASS_PROD
+  )
+    return res.status(401).json({ error: "Unauthorized" });
 
-  // === Get order_id ===
   const orderId = req.query.order_id;
+  if (!orderId) return res.status(400).json({ error: "Missing order_id" });
 
-  if (!orderId) {
-    return res.status(400).json({ error: "Missing order_id parameter" });
-  }
+  const numericId = orderId.startsWith("SF") ? orderId.slice(2) : orderId;
 
-  // === Load hidden orders file ===
-  const filePath = path.resolve("./lib/hiddenOrders.json");
+  try {
+    const shop = process.env.SHOPIFY_STORE;
+    const token = process.env.SHOPIFY_TOKEN;
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(500).json({
-      error: "hiddenOrders.json NOT FOUND",
+    const getUrl = `https://${shop}/admin/api/2024-10/orders/${numericId}.json`;
+    const data = await axios.get(getUrl, {
+      headers: { "X-Shopify-Access-Token": token },
     });
+    const order = data.data.order;
+    let tags = (order.tags || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    tags = tags.filter((t) => t.toLowerCase() !== "hidden");
+
+    const putUrl = `https://${shop}/admin/api/2024-10/orders/${numericId}.json`;
+    await axios.put(
+      putUrl,
+      { order: { id: numericId, tags: tags.join(", ") } },
+      { headers: { "X-Shopify-Access-Token": token } }
+    );
+
+    res.status(200).json({ success: true, unhidden: orderId });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to unhide", details: err.message });
   }
-
-  const hiddenData = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  let hiddenList = hiddenData.hidden || [];
-
-  // === Remove order from hidden list ===
-  const updatedList = hiddenList.filter((id) => id !== orderId);
-
-  // Save updated file
-  fs.writeFileSync(
-    filePath,
-    JSON.stringify({ hidden: updatedList }, null, 2),
-    "utf8"
-  );
-
-  return res.status(200).json({
-    success: true,
-    unhiddenOrder: orderId,
-    totalHidden: updatedList.length,
-  });
 }

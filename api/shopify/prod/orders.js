@@ -1,130 +1,91 @@
 import axios from "axios";
-import fs from "fs";
-import path from "path";
 
 export default async function handler(req, res) {
   try {
-    // === Basic Auth ===
     const auth = req.headers.authorization || "";
-    const validUser = process.env.BASIC_USER_PROD;
-    const validPass = process.env.BASIC_PASS_PROD;
-
     if (!auth.startsWith("Basic ")) {
-      res
-        .status(401)
-        .setHeader("WWW-Authenticate", "Basic")
-        .json({ error: "Unauthorized" });
-      return;
-    }
-
-    const decoded = Buffer.from(auth.split(" ")[1], "base64").toString();
-    const [user, pass] = decoded.split(":");
-
-    if (user !== validUser || pass !== validPass) {
+      res.setHeader("WWW-Authenticate", "Basic");
       return res.status(401).json({ error: "Unauthorized" });
     }
+    const decoded = Buffer.from(auth.split(" ")[1], "base64").toString();
+    const [user, pass] = decoded.split(":");
+    if (
+      user !== process.env.BASIC_USER_PROD ||
+      pass !== process.env.BASIC_PASS_PROD
+    )
+      return res.status(401).json({ error: "Unauthorized" });
 
-    // === Shopify Settings ===
     const shop = process.env.SHOPIFY_STORE;
     const token = process.env.SHOPIFY_TOKEN;
 
-    // === Build URL ===
-    const days = parseInt(req.query.days || "0", 10);
-    let url = `https://${shop}/admin/api/2024-10/orders.json?status=any&financial_status=paid`;
+    const days = parseInt(req.query.days || "0");
+    let url = `https://${shop}/admin/api/2024-10/orders.json?status=any&financial_status=paid&limit=250`;
 
-    // Filter by last X days
-    if (!isNaN(days) && days > 0) {
-      const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      url += `&created_at_min=${encodeURIComponent(cutoffDate.toISOString())}`;
+    if (days > 0) {
+      const cut = new Date(Date.now() - days * 86400000).toISOString();
+      url += `&created_at_min=${encodeURIComponent(cut)}`;
     }
 
-    // === Fetch orders from Shopify ===
     const response = await axios.get(url, {
-      headers: {
-        "X-Shopify-Access-Token": token,
-        "Content-Type": "application/json",
-      },
+      headers: { "X-Shopify-Access-Token": token },
     });
 
-    const orders = response.data?.orders || [];
+    const orders = response.data.orders || [];
 
-    // No Shopify orders found
-    if (orders.length === 0) {
-      return res.status(200).json({
-        source: "shopify_live",
-        message:
-          days > 0
-            ? `No paid orders found in the last ${days} day(s).`
-            : "No paid orders found.",
-        orders: [],
-      });
-    }
+    const formatted = orders.map((o) => ({
+      reference: o.name,
+      id: "SF" + o.id,
+      tags: o.tags || "",
+      payment: { totalAmount: parseFloat(o.total_price) || 0 },
+      created_at: o.created_at,
 
-    // === Format orders (client structure) ===
-    const formattedOrders = orders.map((order) => ({
-      reference: order.name,
-      id: "SF" + order.id,
-      payment: { totalAmount: parseFloat(order.total_price) },
+      customerName: o.customer
+        ? `${o.customer.first_name || ""} ${o.customer.last_name || ""}`.trim()
+        : "",
+      customerEmail: o.customer?.email || "",
 
       billingAddress: {
-        lastName: order.billing_address?.last_name || "",
-        firstName: order.billing_address?.first_name || "",
-        phone: order.billing_address?.phone || "",
-        mobilePhone: order.billing_address?.phone || "",
-        street: order.billing_address?.address1 || "",
-        street2: order.billing_address?.address2 || "",
-        postalCode: order.billing_address?.zip || "",
-        city: order.billing_address?.city || "",
-        country: order.billing_address?.country || "",
-        email: order.email || "",
+        firstName: o.billing_address?.first_name || "",
+        lastName: o.billing_address?.last_name || "",
+        street: o.billing_address?.address1 || "",
+        street2: o.billing_address?.address2 || "",
+        city: o.billing_address?.city || "",
+        postalCode: o.billing_address?.zip || "",
+        country: o.billing_address?.country || "",
+        phone: o.billing_address?.phone || "",
       },
 
       shippingAddress: {
-        lastName: order.shipping_address?.last_name || "",
-        firstName: order.shipping_address?.first_name || "",
-        phone: order.shipping_address?.phone || "",
-        mobilePhone: order.shipping_address?.phone || "",
-        street: order.shipping_address?.address1 || "",
-        street2: order.shipping_address?.address2 || "",
-        postalCode: order.shipping_address?.zip || "",
-        city: order.shipping_address?.city || "",
-        country: order.shipping_address?.country || "",
+        firstName: o.shipping_address?.first_name || "",
+        lastName: o.shipping_address?.last_name || "",
+        street: o.shipping_address?.address1 || "",
+        street2: o.shipping_address?.address2 || "",
+        city: o.shipping_address?.city || "",
+        postalCode: o.shipping_address?.zip || "",
+        country: o.shipping_address?.country || "",
+        phone: o.shipping_address?.phone || "",
       },
 
-      items: order.line_items.map((i) => ({
-        reference: i.sku || i.product_id?.toString(),
+      items: (o.line_items || []).map((i) => ({
+        reference: i.sku || String(i.product_id),
       })),
     }));
 
-    // === Load hidden order IDs ===
-    const hiddenFilePath = path.resolve("./lib/hiddenOrders.json");
-    let hiddenList = [];
+    const visible = formatted.filter((o) => {
+      const t = (o.tags || "")
+        .toLowerCase()
+        .split(",")
+        .map((a) => a.trim());
+      return !t.includes("hidden");
+    });
 
-    if (fs.existsSync(hiddenFilePath)) {
-      const hiddenData = JSON.parse(fs.readFileSync(hiddenFilePath, "utf8"));
-      hiddenList = hiddenData.hidden || [];
-    }
-
-    // === Filter hidden orders ===
-    const visibleOrders = formattedOrders.filter(
-      (o) => !hiddenList.includes(o.id)
-    );
-
-    return res.status(200).json({
+    res.status(200).json({
       source: "shopify_live",
-      hidden_count: formattedOrders.length - visibleOrders.length,
-      total_count: formattedOrders.length,
-      orders: visibleOrders,
+      hidden_count: formatted.length - visible.length,
+      total_count: formatted.length,
+      orders: visible,
     });
-  } catch (error) {
-    console.error(
-      "PROD Shopify API error:",
-      error.response?.data || error.message
-    );
-
-    res.status(500).json({
-      error: "Failed to fetch production orders",
-      details: error.response?.data || error.message,
-    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed", details: err.message });
   }
 }
