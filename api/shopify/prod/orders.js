@@ -87,7 +87,6 @@ export default async function handler(req, res) {
     });
 
     res.status(200).json({
-      source: "shopify_live",
       hidden_count: formatted.length - visible.length,
       total_count: formatted.length,
       orders: visible,

@@ -47,14 +47,12 @@ export default function handler(req, res) {
       );
 
       return res.status(200).json({
-        source: "dummy_test_data",
         filteredDays: days,
         orders: filtered,
       });
     }
 
     res.status(200).json({
-      source: "dummy_test_data",
       orders,
     });
   } catch (error) {
