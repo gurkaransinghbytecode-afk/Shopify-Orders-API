@@ -33,15 +33,22 @@ export default async function handler(req, res) {
     const orders = response.data.orders || [];
 
     const formatted = orders.map((o) => ({
-      reference: o.name,
-      id: "SF" + o.id,
+      reference: o.name || String(o.order_number || o.id),
+
+      id: `SF${String(o.id)}`,
+
       tags: o.tags || "",
-      payment: { totalAmount: parseFloat(o.total_price) || 0 },
-      created_at: o.created_at,
+
+      payment: {
+        totalAmount: Number(o.total_price || 0),
+      },
+
+      created_at: o.created_at || "",
 
       customerName: o.customer
         ? `${o.customer.first_name || ""} ${o.customer.last_name || ""}`.trim()
         : "",
+
       customerEmail: o.customer?.email || "",
 
       billingAddress: {
@@ -67,7 +74,7 @@ export default async function handler(req, res) {
       },
 
       items: (o.line_items || []).map((i) => ({
-        reference: i.sku || String(i.product_id),
+        reference: i.sku || (i.product_id ? String(i.product_id) : "") || "",
       })),
     }));
 
