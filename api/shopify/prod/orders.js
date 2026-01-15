@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const token = process.env.SHOPIFY_TOKEN;
 
     const days = parseInt(req.query.days || "0");
-    let url = `https://${shop}/admin/api/2024-10/orders.json?status=any&financial_status=paid&limit=250`;
+    let url = `https://${shop}/admin/api/2025-01/orders.json?status=any&financial_status=paid&limit=250`;
 
     if (days > 0) {
       const cut = new Date(Date.now() - days * 86400000).toISOString();
@@ -74,7 +74,14 @@ export default async function handler(req, res) {
       },
 
       items: (o.line_items || []).map((i) => ({
-        reference: i.sku || (i.product_id ? String(i.product_id) : "") || "",
+        // The 'snapshot' SKU from the order (may be null)
+        sku: i.sku?.trim() || null,
+
+        // The ID used to look up the CURRENT SKU if reference is null
+        variant_id: i.variant_id,
+
+        title: i.title,
+        quantity: i.quantity,
       })),
     }));
 
